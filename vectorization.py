@@ -79,7 +79,7 @@ for i, (id, ix, group) in enumerate(yielder(filenames.htid)):
             print("{} books done, {:.02f} chunks per book, {:.02f} books per second".format(books, i/books, rate))
     last = id
 
-    id = "{}_{:04d}".format(id, ix)
+    id = "{}-{:04d}".format(id, ix)
     
     # Do SRP
     SRP_rep = SRP_transform(group)
