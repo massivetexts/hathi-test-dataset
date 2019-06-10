@@ -3,8 +3,7 @@
 
 # In[140]:
 
-
-from htrc_features import FeatureReader
+from htrc_features import FeatureReader,transformations
 from htrc_features.utils import id_to_rsync
 import pandas as pd
 import numpy as np
@@ -12,6 +11,7 @@ import time
 import uuid
 import sys
 import SRP
+from wem_hook import WEM_transform
 
 if len(sys.argv) < 5:
     print("Usage: `python vectorization.py 3 5 '../../hathi-ef' 'test_dataset.csv.gz'`, where this is the third of five threads and the ef root directory is '../../hathi-ef'. NOT zero-indexed.")
@@ -23,7 +23,7 @@ test_file_loc = sys.argv[4]
 
 filenames = pd.read_csv("test_dataset.csv.gz", low_memory = False)
 
-def yielder(ids, chunk_size = 5000, hathi_loc = "../../hathi-ef/"):
+def yielder(ids, chunk_size = 5000, hathi_loc = hathi_features_loc):
     """
     ids: a list of htids to iterate over.
     chunks_size: the chunk size.
@@ -37,14 +37,14 @@ def yielder(ids, chunk_size = 5000, hathi_loc = "../../hathi-ef/"):
     for i, vol in enumerate(reader.volumes()):
         id = vol.id
         try:
-            chunks = vol.chunked_tokenlist(chunk_size).groupby(["chunk","token"])['count'].sum().reset_index(1)
+            chunks = vol.chunked_tokenlist(chunk_size, pos=False)
+            if chunks.empty:
+                continue
+            for ix in chunks.index.get_level_values('chunk').unique():
+                 yield (id, ix, chunks.xs(ix, level='chunk').reset_index())
         except:
             print("Error chunking {}... skipping\n".format(id))
             continue
-        grouped = chunks.groupby("chunk")
-        for ix, group in grouped:
-             yield (id, ix, group.reset_index(0, drop=True))
-
 thread_name = "{}-of-{}_".format(thread_no + 1, threads)
 
 
@@ -70,28 +70,36 @@ books = 0
 last = None
 start = time.time()
 
-for i, (id, ix, group) in enumerate(yielder(filenames.htid)):
-    # Count books too.
-    if last != id:
-        books += 1
-        if books % 50 == 0:
-            rate = books/(time.time()-start)
-            print("{} books done, {:.02f} chunks per book, {:.02f} books per second".format(books, i/books, rate))
-    last = id
+try:
+    for i, (id, ix, group) in enumerate(yielder(filenames.htid)):
+        # Count books too.
+        if last != id:
+            books += 1
+            if (books % 20 == 0):
+                rate = books/(time.time()-start)
+                print("{} books done, {:.02f} chunks per book, {:.02f} books per second".format(books, i/books, rate))
+        last = id
 
-    id = "{}-{:04d}".format(id, ix)
-    
-    # Do SRP
-    SRP_rep = SRP_transform(group)
-    out_SRP.add_row(id, SRP_rep)
-    
-    wordcount_rep = group       .reset_index(0, drop = True)       .to_csv(line_terminator="\n", header = False, index=False)       .replace("\n", "\f")
-    
-    unigrams.write("{}\t{}\n".format(id, wordcount_rep))
+        id = "{}-{:04d}".format(id, ix)
 
+        # Do SRP
+        SRP_rep = SRP_transform(group)
+        out_SRP.add_row(id, SRP_rep)
 
-# In[168]:
+        # Convert to 300dim Glove vec
+        WEM_rep = WEM_transform(group)
+        out_glove.add_row(id, WEM_rep.astype('<f4'))
 
+        wordcount_rep = (group.reset_index(0, drop = True)
+                              .to_csv(line_terminator="\n", header = False, index=False)
+                              .replace("\n", "\f")
+                        )
 
-out_SRP.close()
-unigrams.close()
+        unigrams.write("{}\t{}\n".format(id, wordcount_rep))
+
+    out_SRP.close()
+    unigrams.close()
+
+except KeyboardInterrupt:
+    out_glove.close()
+    out_SRP.close()
