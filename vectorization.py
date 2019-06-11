@@ -25,7 +25,7 @@ test_file_loc = sys.argv[4]
 
 already_imported = already_imported_list()
 
-print("There are {} files already imported".format(len(already_imported))
+print("There are {} files already imported".format(len(already_imported)))
 
 def yielder(ids, chunk_size = 5000, hathi_loc = hathi_features_loc):
     """
