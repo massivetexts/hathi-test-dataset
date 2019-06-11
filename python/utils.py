@@ -24,6 +24,8 @@ class Comparison(object):
         self.left = left
         self.right = right
 
+    
+        
     def jaccard(self, document = "page"):
         """
         Return pairwise jaccard similarities across pages.
@@ -60,3 +62,42 @@ class Comparison(object):
         return merged
 
 
+
+class MTVolume():
+    def __init__(self, htid, vectorset = None, fullset = None):
+        self.htid = htid
+        if fullset is not None:
+            vectorset = []
+            for (i, name) in enumerate(fullset['names']):
+                id = name.split("-")[0]
+                if id == self.htid:
+                    vectorset.append(fullset['matrix'][i])
+            vectorset = np.array(vectorset)
+            self.fullset = fullset
+        self.vectorset = vectorset
+        
+    def brute_cosine(self, fullset = None):
+        if fullset is None:
+            fullset = self.fullset
+        distances = np.dot(self.vectorset, np.transpose(fullset['matrix']))
+        return distances
+        
+import json
+import urllib
+
+class HTID(object):
+    def __init__(self, htid):
+        self.htid = htid
+        self.reader = None
+
+    def _rsync_loc(self, root = "../../hathi-ef/"):
+        loc = id_to_rsync(self.htid)
+        return root + loc
+
+    def volume(self):
+        if self.reader is None:
+            self.reader = FeatureReader(self._rsync_loc())
+        return list(self.reader.volumes())[0]
+    
+    def _repr_html_(self):
+        return self.volume()._repr_html_()

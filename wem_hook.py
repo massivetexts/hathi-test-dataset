@@ -1,5 +1,8 @@
 wem_model = None
 wem_vocab = None
+
+from local import wem_location
+
 from htrc_features import transformations
 
 def WEM_transform(f):
@@ -8,7 +11,7 @@ def WEM_transform(f):
     from gensim.models import KeyedVectors
     
     if not wem_model:
-        wem_model = KeyedVectors.load_word2vec_format('/data/glove/glove.840B-300d.word2vec.bin', binary=True)
+        wem_model = KeyedVectors.load_word2vec_format(wem_location, binary=True)
         
     if not wem_vocab:
         from spacy.lang.en.stop_words import STOP_WORDS
@@ -18,3 +21,4 @@ def WEM_transform(f):
         
     vec = transformations.chunk_to_wem(f, wem_model, vocab=wem_vocab, stop=False, log=True, min_ncount=10)
     return vec
+
