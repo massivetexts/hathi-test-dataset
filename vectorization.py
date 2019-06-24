@@ -26,6 +26,7 @@ test_file_loc = sys.argv[4]
 already_imported = already_imported_list()
 
 print("There are {} files already imported".format(len(already_imported)))
+filenames = pd.read_csv("test_dataset.csv.gz", low_memory = False)
 
 def yielder(ids, chunk_size = 5000, hathi_loc = hathi_features_loc):
     """
@@ -34,13 +35,11 @@ def yielder(ids, chunk_size = 5000, hathi_loc = hathi_features_loc):
     
     returns: an iterable over tuples of id, chunk number, and the grouped token counts.
     """
-    locs = [hathi_loc + id_to_rsync(id) for id in ids if not id in already_completed]
+    locs = [hathi_loc + id_to_rsync(id) for id in ids if not id in already_imported]
     
     # Only do the ones allocated for this thread.
     locs = [loc for (i, loc) in enumerate(locs) if i % threads == thread_no]
     reader = FeatureReader(locs)
-
-    
     
     for i, vol in enumerate(reader.volumes()):
         id = vol.id
@@ -84,7 +83,7 @@ try:
     for i, (id, ix, group) in enumerate(yielder(filenames.htid)):
         # Count books too.
         if last != id:
-            already_seen_file.write("{}\n".format(last)
+            already_seen_file.write("{}\n".format(last))
             books += 1
             if (books % 20 == 0):
                 rate = books/(time.time()-start)
@@ -108,7 +107,7 @@ try:
 
         unigrams.write("{}\t{}\n".format(id, wordcount_rep))
 
-    already_seen_file.write("{}\n".format(last)
+    already_seen_file.write("{}\n".format(last))
 
     out_SRP.close()
     unigrams.close()
