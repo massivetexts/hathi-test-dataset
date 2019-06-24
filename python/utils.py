@@ -5,6 +5,8 @@ from htrc_features.feature_reader import group_tokenlist
 from htrc_features.utils import id_to_rsync
 import pandas as pd
 import numpy as np
+import json
+import urllib
 
 def page_counts(id, hathi_loc = "../../hathi-ef/"):
     loc = hathi_loc + id_to_rsync(id)
@@ -23,7 +25,6 @@ class Comparison(object):
         """
         self.left = left
         self.right = right
-
     
         
     def jaccard(self, document = "page"):
@@ -81,9 +82,6 @@ class MTVolume():
             fullset = self.fullset
         distances = np.dot(self.vectorset, np.transpose(fullset['matrix']))
         return distances
-        
-import json
-import urllib
 
 class HTID(object):
     def __init__(self, htid):
