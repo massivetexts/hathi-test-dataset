@@ -327,10 +327,11 @@ class HTID(object):
         self.reader = None
         self._volume = None
         self._tokensets = None
+        self.rsync_root = rsync_root
         
-    def _rsync_loc(self, root = "../../hathi-ef/"):
+    def _rsync_loc(self):
         loc = id_to_rsync(self.htid)
-        return root + loc
+        return self.rsync_root + loc
 
     @property
     def volume(self):
@@ -338,7 +339,7 @@ class HTID(object):
             return self._volume
         if self.reader is None:
             self.reader = FeatureReader(self._rsync_loc())
-        self._volume = list(self.reader.volumes())[0]
+        self._volume = self.reader.first()
         return self._volume
 
     @property

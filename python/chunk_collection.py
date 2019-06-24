@@ -75,8 +75,6 @@ class ChunkCollection():
         """
         yield a matrix with chunks for each htid in the htids AND
         the associated IDs.
-
-        
         """
         output = []
         for id in htids:
