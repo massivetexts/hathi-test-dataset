@@ -322,7 +322,7 @@ class HTID(object):
 
     Essentially a wrapper around the feature reader without any iteration.
     """
-    def __init__(self, htid, rsync_root = "../../hathi-ef/"):
+    def __init__(self, htid, rsync_root = "../../hathi-ef"):
         self.htid = htid
         self.reader = None
         self._volume = None
@@ -343,16 +343,9 @@ class HTID(object):
         return self._volume
 
     @property
-    def page_counts(self, cache_parquet = True):
+    def page_counts(self):
         # This could wrap around parquet.
-        loc = self._rsync_loc()
-        parquet_loc = loc.replace(".json.bz2", ".parquet")
-        if os.path.exists(parquet_loc):
-            return pd.read_parquet(parquet_loc)
-        vol = list(FeatureReader([loc]).volumes())[0]
-        table = self.volume.tokenlist().groupby(["page", "token"])['count'].sum().reset_index()
-        table.to_parquet(parquet_loc)
-        return table
+        return self.volume.tokenlist().groupby(["page", "token"])['count'].sum().reset_index()
 
     @property
     def tokensets(self):
