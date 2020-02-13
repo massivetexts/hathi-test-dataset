@@ -3,7 +3,7 @@
 
 # In[140]:
 
-from htrc_features import FeatureReader,transformations
+from htrc_features import Volume,transformations
 from htrc_features.utils import id_to_rsync
 import pandas as pd
 import numpy as np
@@ -13,45 +13,45 @@ import sys
 import SRP
 from wem_hook import WEM_transform
 from python.import_utils import already_imported_list
+from python.hathi_resolver import my_resolver as customizable_resolver
 
-if len(sys.argv) < 5:
-    print("Usage: `python vectorization.py 3 5 '../../hathi-ef' 'test_dataset.csv.gz'`, where this is the third of five threads and the ef root directory is '../../hathi-ef'. NOT zero-indexed.")
+if len(sys.argv) < 4:
+    print("Usage: `python vectorization.py 3 5 'test_dataset.csv.gz'`, where this is the third of five threads. NOT zero-indexed.")
 
 thread_no = int(sys.argv[1]) - 1 # Zero index.
 threads   = int(sys.argv[2])
-hathi_features_loc = sys.argv[3]
-test_file_loc = sys.argv[4]
-
+test_file_loc = sys.argv[3]
 
 already_imported = already_imported_list()
 
 print("There are {} files already imported".format(len(already_imported)))
 filenames = pd.read_csv("test_dataset.csv.gz", low_memory = False)
 
-def yielder(ids, chunk_size = 5000, hathi_loc = hathi_features_loc):
+def yielder(ids, chunk_size = 5000):
     """
     ids: a list of htids to iterate over.
     chunks_size: the chunk size.
     
     returns: an iterable over tuples of id, chunk number, and the grouped token counts.
     """
-    locs = [hathi_loc + id_to_rsync(id) for id in ids if not id in already_imported]
+    locs = [id for id in ids if not id in already_imported]
     
     # Only do the ones allocated for this thread.
     locs = [loc for (i, loc) in enumerate(locs) if i % threads == thread_no]
-    reader = FeatureReader(locs)
     
-    for i, vol in enumerate(reader.volumes()):
-        id = vol.id
+    for i, id in enumerate(locs):
+        vol = Volume(id, id_resolver = customizable_resolver)
         try:
-            chunks = vol.chunked_tokenlist(chunk_size, pos=False)
+            chunks = vol.tokenlist(chunk = True, chunk_size = 10000, overflow = 'ends', pos=False, page_ref = True)
+            chunks.reset_index(level = 3, inplace = True)
             if chunks.empty:
                 continue
-            for ix in chunks.index.get_level_values('chunk').unique():
-                 yield (id, ix, chunks.xs(ix, level='chunk').reset_index())
+            for (chunk, start, end) in set(chunks.index):
+                yield (id, chunk, start, end, chunks.loc[(chunk, start, end)].reset_index(drop = True))
         except:
             print("Error chunking {}... skipping\n".format(id))
             continue
+
 thread_name = "{}-of-{}_".format(thread_no + 1, threads)
 
 
@@ -77,20 +77,21 @@ unigrams = gzip.open("data_outputs/" + thread_name + "bookworm.unigrams.gz", "wt
 
 books = 0
 last = None
-start = time.time()
+start_time = time.time()
 
 try:
-    for i, (id, ix, group) in enumerate(yielder(filenames.htid)):
+    for i, (id, chunk, start, end, group) in enumerate(yielder(filenames.htid)):
         # Count books too.
         if last != id:
-            already_seen_file.write("{}\n".format(last))
             books += 1
-            if (books % 20 == 0):
-                rate = books/(time.time()-start)
-                print("{} books done, {:.02f} chunks per book, {:.02f} books per second".format(books, i/books, rate))
+            if last is not None:
+                already_seen_file.write("{}\n".format(last))
+                if (books % 25 == 0):
+                    rate = books/(time.time()-start_time)
+                    print("{} books done on thread {} of {}, {:.02f} chunks per book, {:.02f} books per second".format(books, thread_no, threads, i/books, rate))
         last = id
                                     
-        id = "{}-{:04d}".format(id, ix)
+        id = "{}-{:04d}-{}-{}".format(id, chunk, start, end)
 
         # Do SRP
         SRP_rep = SRP_transform(group)
@@ -100,12 +101,13 @@ try:
         WEM_rep = WEM_transform(group)
         out_glove.add_row(id, WEM_rep.astype('<f4'))
 
-        wordcount_rep = (group.reset_index(0, drop = True)
-                              .to_csv(line_terminator="\n", header = False, index=False)
-                              .replace("\n", "\f")
-                        )
+        if False:
+            wordcount_rep = (group.reset_index(0, drop = True)
+                                  .to_csv(line_terminator="\n", header = False, index=False)
+                                  .replace("\n", "\f")
+                            )
 
-        unigrams.write("{}\t{}\n".format(id, wordcount_rep))
+            unigrams.write("{}\t{}\n".format(id, wordcount_rep))
 
     already_seen_file.write("{}\n".format(last))
 
