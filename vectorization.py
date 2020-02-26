@@ -1,8 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[140]:
-
 from htrc_features import Volume,transformations
 from htrc_features.utils import id_to_rsync
 import pandas as pd
@@ -12,7 +7,7 @@ import uuid
 import sys
 import SRP
 from wem_hook import WEM_transform
-from python.import_utils import already_imported_list
+from compare_tools.import_utils import already_imported_list
 from python.hathi_resolver import my_resolver as customizable_resolver
 
 if len(sys.argv) < 4:
@@ -42,13 +37,14 @@ def yielder(ids, chunk_size = 5000):
     for i, id in enumerate(locs):
         vol = Volume(id, id_resolver = customizable_resolver)
         try:
-            chunks = vol.tokenlist(chunk = True, chunk_size = 10000, overflow = 'ends', pos=False, page_ref = True)
+            chunks = vol.tokenlist(chunk = True, chunk_size = 10000, overflow = 'ends', case=False, pos=False, page_ref = True)
             chunks.reset_index(level = 3, inplace = True)
             if chunks.empty:
                 continue
             for (chunk, start, end) in set(chunks.index):
                 yield (id, chunk, start, end, chunks.loc[(chunk, start, end)].reset_index(drop = True))
         except:
+            raise
             print("Error chunking {}... skipping\n".format(id))
             continue
 
@@ -62,7 +58,7 @@ out_SRP = SRP.Vector_file("data_outputs/" + thread_name + "SRP_chunks.bin", dims
 out_glove = SRP.Vector_file("data_outputs/" + thread_name + "Glove_chunks.bin", dims = 300, mode="w")
 
 def SRP_transform(f):
-    return hasher.stable_transform(words = f['token'], counts = f['count'], log = True, standardize = True)
+    return hasher.stable_transform(words = f['lowercase'], counts = f['count'], log = True, standardize = True)
 
 
 # In[146]:
