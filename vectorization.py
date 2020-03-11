@@ -44,7 +44,6 @@ def yielder(ids, chunk_size = 5000):
             for (chunk, start, end) in set(chunks.index):
                 yield (id, chunk, start, end, chunks.loc[(chunk, start, end)].reset_index(drop = True))
         except:
-            raise
             print("Error chunking {}... skipping\n".format(id))
             continue
 
@@ -108,6 +107,7 @@ try:
     already_seen_file.write("{}\n".format(last))
 
     out_SRP.close()
+    out_glove.close()
     unigrams.close()
 
 except KeyboardInterrupt:
