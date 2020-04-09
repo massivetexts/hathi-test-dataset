@@ -11,7 +11,10 @@ def WEM_transform(f):
     from gensim.models import KeyedVectors
     
     if not wem_model:
-        wem_model = KeyedVectors.load_word2vec_format(wem_location, binary=True)
+        # Updated to use gensim's saved format - faster and memmappable.
+        # if you have files in another format that Gensim can open, you can
+        # open and 'save()' as the native format.
+        wem_model = KeyedVectors.load(wem_location, mmap='r')
         
     if not wem_vocab:
         from spacy.lang.en.stop_words import STOP_WORDS
