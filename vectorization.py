@@ -1,16 +1,21 @@
-from htrc_features import Volume,transformations
-from htrc_features.utils import id_to_rsync
+from htrc_features import Volume, transformations
 import pandas as pd
-import numpy as np
 import time
-import uuid
 import os
-import sys
 import SRP
 import argparse
-from wem_hook import WEM_transform
 from compare_tools.import_utils import already_imported_list
 from python.hathi_resolver import my_resolver as customizable_resolver
+from compare_tools.configuration import wem_loader
+
+def WEM_transform(f):
+    global wem_model
+    global wem_vocab
+    from gensim.models import KeyedVectors
+        
+    vec = transformations.chunk_to_wem(f, wem_model, vocab=wem_vocab, stop=False, log=True, min_ncount=10)
+    return vec
+
 
 def main():
     parser = argparse.ArgumentParser(description="Convert Extracted Features files to vectors, and save in SRP's Vector_file format.")
@@ -22,6 +27,8 @@ def main():
     parser.add_argument('--chunksize', '-c', type=int, default=10000, help='Size of chunks to roll pages into.')
     parser.add_argument('--no-srp', action='store_true', help='Turn off SRP saving')
     parser.add_argument('--no-glove', action='store_true', help='Turn off Glove saving')
+    parser.add_argument('--glove-dims', '-g', type=int, default=300, help='Number of GloVe dimensions. Can be 50, 100, 200, or 300.')
+    parser.add_argument('--srp-dims', '-s', type=int, default=640, help='Number of SRP dimensions.')
     args = parser.parse_args()
     
     thread_no = args.threadno - 1 # Zero index.
@@ -37,14 +44,24 @@ def main():
     already_seen_file = open(os.path.join(args.outdir, "already_completed_files{}.csv".format(thread_name)), "a")
 
     if not args.no_srp:
-        hasher = SRP.SRP(640)
-        out_SRP = SRP.Vector_file(os.path.join(args.outdir, thread_name + "SRP_chunks.bin"), dims=640, mode="w")
+        hasher = SRP.SRP(args.srp_dims)
+        out_SRP = SRP.Vector_file(os.path.join(args.outdir, thread_name + "SRP_chunks.bin"), dims=args.srp_dims, mode="w")
         
         def SRP_transform(f):
             return hasher.stable_transform(words = f['lowercase'], counts = f['count'], log = True, standardize = True)
     
     if not args.no_glove:
-        out_glove = SRP.Vector_file(os.path.join(args.outdir, thread_name + "Glove_chunks.bin"), dims = 300, mode="w")
+        wem_model = wem_loader('glove-wiki-gigaword-{}'.format(args.glove_dims))
+        
+        # Cross-ref with stoplist and drop stopped words
+        from spacy.lang.en.stop_words import STOP_WORDS
+        wem_vocab = set(wem_model.vocab.keys())
+        wem_vocab = wem_vocab.difference(STOP_WORDS)
+        
+        out_glove = SRP.Vector_file(os.path.join(args.outdir, thread_name + "Glove_chunks.bin"), dims = args.glove_dims, mode="w")
+        
+        def WEM_transform(f):
+            return transformations.chunk_to_wem(f, wem_model, vocab=wem_vocab, stop=False, log=True, min_ncount=10)
 
     books = 0
     last = None
