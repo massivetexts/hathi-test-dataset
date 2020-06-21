@@ -8,15 +8,6 @@ from compare_tools.import_utils import already_imported_list
 from python.hathi_resolver import my_resolver as customizable_resolver
 from compare_tools.configuration import wem_loader
 
-def WEM_transform(f):
-    global wem_model
-    global wem_vocab
-    from gensim.models import KeyedVectors
-        
-    vec = transformations.chunk_to_wem(f, wem_model, vocab=wem_vocab, stop=False, log=True, min_ncount=10)
-    return vec
-
-
 def main():
     parser = argparse.ArgumentParser(description="Convert Extracted Features files to vectors, and save in SRP's Vector_file format.")
 
@@ -26,6 +17,7 @@ def main():
     parser.add_argument('--outdir', '-o', type=str, default='data_outputs/', help='Directory to save results.')
     parser.add_argument('--chunksize', '-c', type=int, default=10000, help='Size of chunks to roll pages into.')
     parser.add_argument('--no-srp', action='store_true', help='Turn off SRP saving')
+    parser.add_argument('--in-memory', action='store_true', help='Turn off on-disk build if you have enough memory.')
     parser.add_argument('--no-glove', action='store_true', help='Turn off Glove saving')
     parser.add_argument('--glove-dims', '-g', type=int, default=300, help='Number of GloVe dimensions. Can be 50, 100, 200, or 300.')
     parser.add_argument('--srp-dims', '-s', type=int, default=640, help='Number of SRP dimensions.')
@@ -89,8 +81,14 @@ def main():
 
             if not args.no_glove:
                 WEM_rep = WEM_transform(group)
-                out_glove.add_row(id, WEM_rep.astype('<f4'))
-
+                if WEM_rep.shape[0] != args.glove_dims:
+                    print(WEM_rep.shape, args.glove_dims)
+                try:
+                    out_glove.add_row(id, WEM_rep.astype('<f4'))
+                except:
+                    print(id, WEM_rep.shape, args.glove_dims, wem_model.vector_size)
+                    raise
+                    
         already_seen_file.write("{}\n".format(last))
 
         if not args.no_srp:
@@ -121,11 +119,10 @@ def yielder(ids, thread_no, totalthreads, chunk_size = 10000, already_imported_l
         vol = Volume(id, id_resolver=customizable_resolver)
         try:
             chunks = vol.tokenlist(chunk = True, chunk_size = chunk_size, overflow = 'ends', case=False, pos=False, page_ref = True)
-            chunks.reset_index(level = 3, inplace = True)
             if chunks.empty:
                 continue
-            for (chunk, start, end) in set(chunks.index):
-                yield (id, chunk, start, end, chunks.loc[(chunk, start, end)].reset_index(drop = True))
+            for (chunk, start, end), group in chunks.reset_index().groupby(['chunk', 'pstart', 'pend']):
+                yield (id, chunk, start, end, group)
         except:
             print("Error chunking {}... skipping\n".format(id))
             continue
