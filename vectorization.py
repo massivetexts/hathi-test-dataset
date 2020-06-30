@@ -70,7 +70,7 @@ def main():
                     already_seen_file.write("{}\n".format(last))
                     if (books % 25 == 0):
                         rate = books/(time.time()-start_time)
-                        print("{} books done on thread {} of {}, {:.02f} chunks per book, {:.02f} books per second".format(books, thread_no, args.totalthreads, i/books, rate))
+                        print("{} books done on thread {} of {}, {:.02f} chunks per book, {:.02f} books per second".format(books, thread_no + 1, args.totalthreads, i/books, rate))
             last = id
 
             id = "{}-{:04d}-{}-{}".format(id, chunk, start, end)
@@ -110,15 +110,14 @@ def yielder(ids, thread_no, totalthreads, chunk_size = 10000, already_imported_l
     
     returns: an iterable over tuples of id, chunk number, and the grouped token counts.
     """
-    locs = [id for id in ids if not id in already_imported_list]
     
-    # Only do the ones allocated for this thread.
-    locs = [loc for (i, loc) in enumerate(locs) if i % totalthreads == thread_no]
+    locs = [id for (i, id) in enumerate(ids) if i % totalthreads == thread_no]
+    locs = [loc for loc in locs if loc not in already_imported_list]
     
     for i, id in enumerate(locs):
         vol = Volume(id, id_resolver=customizable_resolver)
         try:
-            chunks = vol.tokenlist(chunk = True, chunk_size = chunk_size, overflow = 'ends', case=False, pos=False, page_ref = True)
+            chunks = vol.tokenlist(chunk = True, chunk_target = chunk_size, overflow = 'ends', case=False, pos=False, page_ref = True)
             if chunks.empty:
                 continue
             for (chunk, start, end), group in chunks.reset_index().groupby(['chunk', 'pstart', 'pend']):
