@@ -17,15 +17,19 @@ def main():
     parser.add_argument('--outdir', '-o', type=str, default='data_outputs/', help='Directory to save results.')
     parser.add_argument('--chunksize', '-c', type=int, default=10000, help='Size of chunks to roll pages into.')
     parser.add_argument('--no-srp', action='store_true', help='Turn off SRP saving')
-    parser.add_argument('--in-memory', action='store_true', help='Turn off on-disk build if you have enough memory.')
     parser.add_argument('--no-glove', action='store_true', help='Turn off Glove saving')
     parser.add_argument('--glove-dims', '-g', type=int, default=300, help='Number of GloVe dimensions. Can be 50, 100, 200, or 300.')
     parser.add_argument('--srp-dims', '-s', type=int, default=640, help='Number of SRP dimensions.')
+    parser.add_argument('--efdir', type=str, default=None,
+                        help='Set an alternative base url for EF files, if not using the setting from local.yaml or ~/.htrc-config.yaml.')
     args = parser.parse_args()
     
     thread_no = args.threadno - 1 # Zero index.
     
     assert not (args.no_srp & args.no_glove)
+    
+    if args.efdir is not None:
+        customizable_resolver.dir = args.efdir
 
     already_imported = already_imported_list(args.outdir)
     print("There are {} files already imported".format(len(already_imported)))
