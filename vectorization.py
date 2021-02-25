@@ -15,7 +15,7 @@ def main():
     parser.add_argument('totalthreads', type=int, help='Number of threads running in total.')
     parser.add_argument('idlist', type=str, help='CSV file of HTIDs to process. Needs a header, with column name \'htid\'.')
     parser.add_argument('--outdir', '-o', type=str, default='data_outputs/', help='Directory to save results.')
-    parser.add_argument('--chunksize', '-c', type=int, default=10000, help='Size of chunks to roll pages into.')
+    parser.add_argument('--chunksize', '-c', type=int, default=10000, help='Size of chunks to roll pages into. -1 will make books into a single full book "chunk".'')
     parser.add_argument('--no-srp', action='store_true', help='Turn off SRP saving')
     parser.add_argument('--no-glove', action='store_true', help='Turn off Glove saving')
     parser.add_argument('--glove-dims', '-g', type=int, default=300, help='Number of GloVe dimensions. Can be 50, 100, 200, or 300.')
@@ -121,7 +121,17 @@ def yielder(ids, thread_no, totalthreads, chunk_size = 10000, already_imported_l
     for i, id in enumerate(locs):
         vol = Volume(id, id_resolver=customizable_resolver)
         try:
-            chunks = vol.tokenlist(chunk = True, chunk_target = chunk_size, overflow = 'ends', case=False, pos=False, page_ref = True)
+            if chunk_size == -1:
+                # artificially create a 'chunk', which is actually the full book.
+                chunks = vol.tokenlist(pages=False, pos=False, case=False)
+                old_idx = chunks.index.to_frame()
+                old_idx.insert(0, 'chunk', 1)
+                old_idx.insert(1, 'pstart', 1)
+                old_idx.insert(2, 'pend', vol.page_count)
+                chunks.index = pd.MultiIndex.from_frame(old_idx)
+            else:
+                chunks = vol.tokenlist(chunk = True, chunk_target = chunk_size, 
+                                       overflow = 'ends', case=False, pos=False, page_ref = True)
             if chunks.empty:
                 continue
             for (chunk, start, end), group in chunks.reset_index().groupby(['chunk', 'pstart', 'pend']):
